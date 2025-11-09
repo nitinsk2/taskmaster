@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Prioritizer Launchpad (Prototype)</title>
+  <style>
+    :root {
+      --bg: #0f1220;
+      --panel: #171a2b;
+      --panel-2: #1f2340;
+      --text: #e9ecf1;
+      --muted: #a9afc3;
+      --acc: #7aa2ff;
+      --acc-2: #a6e3a1;
+      --warn: #ffcc66;
+      --danger: #ff6b6b;
+      --shadow: 0 10px 30px rgba(0,0,0,0.35);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: var(--text);
+      background: linear-gradient(180deg, #0b0e19 0%, #0f1220 60%, #0f1220 100%);
+    }
+    .app {
+      max-width: 1200px; margin: 24px auto; padding: 0 16px;
+      display: grid; grid-template-columns: 360px 1fr; gap: 16px;
+    }
+    @media (max-width: 960px){ .app { grid-template-columns: 1fr; } }
+    .card { background: var(--panel); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid #24284a; }
+    .section { padding: 16px 18px; }
+    .section + .section { border-top: 1px solid #24284a; }
+    h1 { font-size: 22px; margin: 0 0 8px; letter-spacing: .2px; }
+    h2 { font-size: 14px; margin: 0 0 8px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .1em; }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+    input[type="text"], input[type="number"], input[type="datetime-local"], select, textarea {
+      width: 100%; background: var(--panel-2); border: 1px solid #2a2f57; color: var(--text);
+      border-radius: 12px; padding: 10px 12px; outline: none; transition: border .2s ease;
+    }
+    input[type="text"]:focus, input[type="number"]:focus, input[type="datetime-local"]:focus, textarea:focus, select:focus { border-color: var(--acc); }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px; border: 1px solid #31407a; background: #20264b; color: var(--text);
+      padding: 10px 14px; border-radius: 12px; cursor: pointer; user-select: none; transition: transform .06s ease, background .2s;
+    }
+    .btn:hover { background: #2a3262; }
+    .btn:active { transform: translateY(1px); }
+    .btn.primary { background: linear-gradient(180deg, #2a5fff, #224bca); border-color: #2a5fff; }
+    .btn.ghost { background: transparent; border-color: #2a2f57; }
+    .chip { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background:#21264a; border:1px solid #2a2f57; color:#cbd3f4; font-size:12px; }
+    .grid { display: grid; gap: 12px; }
+    .task-card { background: var(--panel-2); border: 1px solid #2a2f57; padding: 12px; border-radius: 14px; display:grid; gap:6px; }
+    .task-title { font-weight: 700; }
+    .sub { color: var(--muted); font-size: 12px; }
+    .controls { display:flex; flex-wrap: wrap; gap:8px; }
+    .slider { display:grid; grid-template-columns: 1fr auto; align-items:center; gap:10px; }
+    input[type="range"] { width:100%; }
+    .kpi { display:grid; grid-template-columns: repeat(3,1fr); gap:10px; }
+    .kpi .box { background:#10142b; border:1px solid #232a50; border-radius:12px; padding:10px; text-align:center; }
+    .kpi .num { font-weight:800; font-size:20px; }
+    .pill { padding:4px 8px; border-radius:999px; background:#1c2142; border:1px solid #2a2f57; font-size:12px; color:#cbd3f4; }
+    .footer-note { color: var(--muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Left: Controls -->
+    <aside class="card">
+      <div class="section">
+        <h1>Prioritizer Launchpad</h1>
+        <div class="footer-note">Client-only prototype • your data is saved in your browser (localStorage)</div>
+      </div>
+      <div class="section grid">
+        <h2>Current State</h2>
+        <div class="slider">
+          <label>Focus / Energy</label>
+          <span id="v_energy" class="pill">3</span>
+          <input id="energy" type="range" min="1" max="5" step="1" value="3" />
+        </div>
+        <div class="slider">
+          <label>Time Available (mins)</label>
+          <span id="v_time" class="pill">25</span>
+          <input id="timeAvail" type="range" min="5" max="240" step="5" value="25" />
+        </div>
+        <div class="grid">
+          <label>Context</label>
+          <div class="controls">
+            <button class="btn ghost" data-ctx="computer">💻 Computer</button>
+            <button class="btn ghost" data-ctx="school">📚 School</button>
+            <button class="btn ghost" data-ctx="home">🏠 Home</button>
+            <button class="btn ghost" data-ctx="errands">🛒 Errands</button>
+          </div>
+          <div id="activeCtx" class="sub"></div>
+        </div>
+      </div>
+      <div class="section grid">
+        <h2>Weights</h2>
+        <div class="slider"><label>Reward</label><span class="pill" id="w_reward_v">1.0</span><input id="w_reward" type="range" min="0" max="2" step="0.1" value="1" /></div>
+        <div class="slider"><label>Context Fit</label><span class="pill" id="w_ctx_v">1.0</span><input id="w_ctx" type="range" min="0" max="2" step="0.1" value="1" /></div>
+        <div class="slider"><label>Avoidance Boost</label><span class="pill" id="w_avoid_v">0.5</span><input id="w_avoid" type="range" min="0" max="2" step="0.1" value="0.5" /></div>
+        <div class="slider"><label>Energy Cost Penalty</label><span class="pill" id="w_energy_v">1.0</span><input id="w_energy_w" type="range" min="0" max="2" step="0.1" value="1" /></div>
+        <div class="slider"><label>Urgency (deadline)</label><span class="pill" id="w_urg_v">1.0</span><input id="w_urg" type="range" min="0" max="2" step="0.1" value="1" /></div>
+        <div class="slider"><label>Overlength Penalty</label><span class="pill" id="w_len_v">0.6</span><input id="w_len" type="range" min="0" max="2" step="0.1" value="0.6" /></div>
+        <div class="controls">
+          <button id="saveWeights" class="btn">Save Weights</button>
+          <button id="resetWeights" class="btn ghost">Reset</button>
+        </div>
+      </div>
+      <div class="section grid">
+        <h2>Add Task</h2>
+        <label>Title<input id="t_title" type="text" placeholder="e.g., Finish assignment intro" /></label>
+        <div class="row">
+          <label>Duration (mins)<input id="t_dur" type="number" min="5" step="5" value="25"/></label>
+          <label>Deadline (optional)<input id="t_dead" type="datetime-local"/></label>
+        </div>
+        <div class="row">
+          <label>Energy Cost (1–5)<input id="t_energy" type="number" min="1" max="5" value="3"/></label>
+          <label>Reward (1–5)<input id="t_reward" type="number" min="1" max="5" value="4"/></label>
+        </div>
+        <label>Contexts (comma tags)<input id="t_ctx" type="text" placeholder="computer, school"/></label>
+        <div class="controls">
+          <button id="addTask" class="btn primary">Add</button>
+          <button id="seedTasks" class="btn ghost">Seed Examples</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Right: Suggestions & List -->
+    <main class="card">
+      <div class="section">
+        <h2>Suggested Next</h2>
+        <div class="kpi">
+          <div class="box"><div class="sub">Tasks</div><div class="num" id="k_tasks">0</div></div>
+          <div class="box"><div class="sub">Ready Now</div><div class="num" id="k_ready">0</div></div>
+          <div class="box"><div class="sub">Avg Score</div><div class="num" id="k_score">–</div></div>
+        </div>
+      </div>
+      <div class="section">
+        <div id="suggestions" class="grid"></div>
+        <div class="controls" style="margin-top:12px">
+          <button id="btnSuggest" class="btn primary">Suggest a Task</button>
+          <button id="btnShuffle" class="btn">Nah, pick another</button>
+          <button id="btnClearRejects" class="btn ghost">Clear dismissed</button>
+        </div>
+      </div>
+      <div class="section">
+        <h2>All Tasks</h2>
+        <div id="taskList" class="grid"></div>
+      </div>
+    </main>
+  </div>
+
+  <template id="taskTpl">
+    <div class="task-card">
+      <div class="task-title"></div>
+      <div class="sub meta"></div>
+      <div class="controls">
+        <button class="btn primary start">Start</button>
+        <button class="btn snooze">Snooze</button>
+        <button class="btn ghost dismiss">Not now</button>
+        <span class="pill score"></span>
+      </div>
+    </div>
+  </template>
+
+  <script>
+  const $ = (q, el=document) => el.querySelector(q);
+  const $$ = (q, el=document) => Array.from(el.querySelectorAll(q));
+
+  // --- Persistence helpers ---
+  const store = {
+    get() { return JSON.parse(localStorage.getItem('pl_tasks') || '[]'); },
+    set(tasks) { localStorage.setItem('pl_tasks', JSON.stringify(tasks)); },
+    getWeights(){ return JSON.parse(localStorage.getItem('pl_weights') || '{}'); },
+    setWeights(w){ localStorage.setItem('pl_weights', JSON.stringify(w)); }
+  };
+
+  // --- App State ---
+  let tasks = store.get();
+  let dismissed = new Set();
+  let activeCtx = new Set(JSON.parse(localStorage.getItem('pl_ctx')||'[]'));
+
+  const weights = Object.assign({ reward:1, ctx:1, avoid:0.5, energy:1, urg:1, len:0.6 }, store.getWeights());
+
+  // --- UI Bindings ---
+  const energySlider = $('#energy');
+  const timeSlider = $('#timeAvail');
+  const wReward = $('#w_reward');
+  const wCtx = $('#w_ctx');
+  const wAvoid = $('#w_avoid');
+  const wEnergy = $('#w_energy_w');
+  const wUrg = $('#w_urg');
+  const wLen = $('#w_len');
+
+  function syncHeader(){
+    $('#v_energy').textContent = energySlider.value;
+    $('#v_time').textContent = timeSlider.value;
+    $('#w_reward_v').textContent = Number(wReward.value).toFixed(1);
+    $('#w_ctx_v').textContent = Number(wCtx.value).toFixed(1);
+    $('#w_avoid_v').textContent = Number(wAvoid.value).toFixed(1);
+    $('#w_energy_v').textContent = Number(wEnergy.value).toFixed(1);
+    $('#w_urg_v').textContent = Number(wUrg.value).toFixed(1);
+    $('#w_len_v').textContent = Number(wLen.value).toFixed(1);
+    $('#activeCtx').textContent = [...activeCtx].length ? 'Active: ' + [...activeCtx].join(', ') : 'No context set';
+  }
+  [energySlider, timeSlider, wReward, wCtx, wAvoid, wEnergy, wUrg, wLen].forEach(el=> el.addEventListener('input', ()=>{ syncHeader(); compute(); }));
+
+  // Context toggle buttons
+  $$('.controls .btn.ghost').filter(b=>b.dataset.ctx).forEach(btn=>{
+    const ctx = btn.dataset.ctx;
+    const setVisual = ()=>{ btn.classList.toggle('primary', activeCtx.has(ctx)); };
+    btn.addEventListener('click', ()=>{ activeCtx.has(ctx) ? activeCtx.delete(ctx) : activeCtx.add(ctx); setVisual(); localStorage.setItem('pl_ctx', JSON.stringify([...activeCtx])); compute(); });
+    setVisual();
+  });
+
+  $('#saveWeights').onclick = ()=>{
+    const w = { reward:+wReward.value, ctx:+wCtx.value, avoid:+wAvoid.value, energy:+wEnergy.value, urg:+wUrg.value, len:+wLen.value };
+    store.setWeights(w);
+    Object.assign(weights, w);
+    compute();
+  };
+  $('#resetWeights').onclick = ()=>{
+    Object.assign(weights, { reward:1, ctx:1, avoid:0.5, energy:1, urg:1, len:0.6 });
+    [wReward,wCtx,wAvoid,wEnergy,wUrg,wLen].forEach((el,i)=> el.value = [1,1,0.5,1,1,0.6][i]);
+    store.setWeights(weights); syncHeader(); compute();
+  };
+
+  // Add/Seed tasks
+  $('#addTask').onclick = ()=>{
+    const t = {
+      id: crypto.randomUUID(),
+      title: $('#t_title').value.trim(),
+      duration: Math.max(5, +$('#t_dur').value||25),
+      deadline: $('#t_dead').value ? new Date($('#t_dead').value).toISOString() : null,
+      energy: clamp(+$('#t_energy').value||3,1,5),
+      reward: clamp(+$('#t_reward').value||3,1,5),
+      ctx: parseTags($('#t_ctx').value),
+      avoidance: 0.2,
+      addedAt: Date.now(),
+      lastStarted: null,
+      snoozedUntil: null
+    };
+    if(!t.title) return alert('Please add a title');
+    tasks.push(t); store.set(tasks); clearAddForm(); compute(true);
+  };
+
+  function clearAddForm(){ ['t_title','t_dur','t_dead','t_energy','t_reward','t_ctx'].forEach(id=> $('#'+id).value = id==='t_dur'?25: (id==='t_energy'||id==='t_reward'?3:'')); }
+
+  $('#seedTasks').onclick = ()=>{
+    if(!confirm('Seed example tasks? This adds a few demo items.')) return;
+    const demo = [
+      {title:'Finish assignment intro', duration:25, deadline: soon(6), energy:3, reward:5, ctx:['computer','school']},
+      {title:'Email advisor to book meeting', duration:10, deadline: soon(36), energy:2, reward:4, ctx:['computer','school']},
+      {title:'Laundry fold + put away', duration:20, deadline:null, energy:2, reward:3, ctx:['home']},
+      {title:'Refactor websocket handler', duration:45, deadline: soon(72), energy:4, reward:5, ctx:['computer']},
+      {title:'Grocery run', duration:35, deadline:null, energy:3, reward:3, ctx:['errands']},
+      {title:'Grad app SOP paragraph', duration:30, deadline: soon(120), energy:4, reward:5, ctx:['computer','school']}
+    ];
+    demo.forEach(d=> tasks.push({ id:crypto.randomUUID(), ...d, avoidance:0.3, addedAt:Date.now(), lastStarted:null, snoozedUntil:null }));
+    store.set(tasks); compute(true);
+  };
+
+  // --- Scoring ---
+  function compute(showSuggestions=false){
+    const now = Date.now();
+    const youEnergy = +energySlider.value;
+    const mins = +timeSlider.value;
+
+    // Map each task to score & readiness
+    const scored = tasks.map(t=>{
+      const ctxFit = t.ctx.length ? t.ctx.filter(x=>activeCtx.has(x)).length / t.ctx.length : 0.5; // neutral if no tags
+      const energyPenalty = Math.max(0, (t.energy - youEnergy));
+      const overLength = Math.max(0, t.duration - mins) / 60; // hours over
+
+      let urgency = 0;
+      if(t.deadline){
+        const hours = (new Date(t.deadline).getTime() - now) / 36e5; // ms -> hours
+        urgency = hours <= 0 ? 2.0 : (hours < 24 ? 1.2 : (hours < 72 ? 0.7 : 0.3));
+      }
+
+      const score = 
+        weights.reward * norm5(t.reward) +
+        weights.ctx    * ctxFit +
+        weights.avoid  * t.avoidance -
+        weights.energy * (energyPenalty/4) -
+        weights.len    * overLength +
+        weights.urg    * urgency;
+
+      const ready = (ctxFit > 0) && (t.duration <= mins + 30) && (youEnergy + 1 >= t.energy) && (!t.snoozedUntil || now >= t.snoozedUntil);
+      return { t, score, ready };
+    })
+    .sort((a,b)=> b.score - a.score);
+
+    // KPIs
+    $('#k_tasks').textContent = tasks.length;
+    const readyCount = scored.filter(x=>x.ready).length; $('#k_ready').textContent = readyCount;
+    const avg = scored.length ? (scored.reduce((s,x)=>s+x.score,0)/scored.length) : 0;
+    $('#k_score').textContent = scored.length ? avg.toFixed(2) : '–';
+
+    renderList(scored);
+    if(showSuggestions) suggestFrom(scored);
+  }
+
+  function renderList(scored){
+    const host = $('#taskList'); host.innerHTML = '';
+    scored.forEach(({t,score,ready})=> host.appendChild(renderTask(t, score, ready)));
+  }
+
+  function renderTask(t, score, ready){
+    const node = $('#taskTpl').content.firstElementChild.cloneNode(true);
+    node.querySelector('.task-title').textContent = t.title;
+    const parts = [];
+    parts.push(`⏱️ ${t.duration}m`);
+    parts.push(`⚡️E${t.energy}`);
+    parts.push(`🎯R${t.reward}`);
+    if(t.deadline) parts.push('📅 ' + new Date(t.deadline).toLocaleString());
+    if(t.ctx?.length) parts.push('🏷 ' + t.ctx.join(', '));
+    if(t.snoozedUntil && Date.now() < t.snoozedUntil) parts.push('😴 snoozed');
+    node.querySelector('.meta').textContent = parts.join('  •  ');
+    node.querySelector('.score').textContent = score.toFixed(2) + (ready? '  ✅' : '');
+
+    // Buttons
+    node.querySelector('.start').onclick = ()=> startTask(t.id);
+    node.querySelector('.snooze').onclick = ()=> snoozeTask(t.id, 60); // 1h
+    node.querySelector('.dismiss').onclick = ()=> dismissTask(t.id);
+    return node;
+  }
+
+  // Suggestion area
+  let lastSuggestIndex = 0;
+  function suggest(){
+    const scored = tasks.map(t=>({t,score:Math.random(),ready:true}));
+    suggestFrom(scored);
+  }
+  function suggestFrom(scored){
+    const host = $('#suggestions');
+    host.innerHTML = '';
+    const pool = scored.filter(x=> !dismissed.has(x.t.id)).slice(0, 6); // top few
+    if(!pool.length){ host.innerHTML = '<div class="sub">No candidates. Adjust state or add tasks.</div>'; return; }
+    const shown = pool.slice(lastSuggestIndex, lastSuggestIndex+3);
+    if(shown.length < 3 && pool.length >= 3){ lastSuggestIndex = 0; return suggestFrom(scored); }
+    shown.forEach(({t,score,ready})=> host.appendChild(renderTask(t, score, ready)));
+  }
+
+  function startTask(id){
+    const t = tasks.find(x=>x.id===id); if(!t) return;
+    t.lastStarted = Date.now();
+    // reduce avoidance slightly when started
+    t.avoidance = Math.max(0, t.avoidance - 0.1);
+    store.set(tasks); compute(true);
+    alert('Nice! Starting: '+t.title);
+  }
+  function snoozeTask(id, mins=60){
+    const t = tasks.find(x=>x.id===id); if(!t) return;
+    t.snoozedUntil = Date.now() + mins*60*1000;
+    t.avoidance = Math.min(1, t.avoidance + 0.05);
+    store.set(tasks); compute(true);
+  }
+  function dismissTask(id){
+    dismissed.add(id); compute(true);
+  }
+  $('#btnSuggest').onclick = ()=>{ lastSuggestIndex = 0; compute(true); };
+  $('#btnShuffle').onclick = ()=>{ lastSuggestIndex = (lastSuggestIndex + 3) % 6; compute(true); };
+  $('#btnClearRejects').onclick = ()=>{ dismissed.clear(); compute(true); };
+
+  // Utils
+  function parseTags(s){ return s.split(',').map(x=>x.trim().toLowerCase()).filter(Boolean); }
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+  function norm5(v){ return clamp((v-1)/4, 0, 1); }
+  function soon(hours){ return new Date(Date.now() + hours*3600000).toISOString(); }
+
+  // Init
+  (function init(){
+    // restore weights to sliders
+    wReward.value = weights.reward; wCtx.value = weights.ctx; wAvoid.value = weights.avoid;
+    wEnergy.value = weights.energy; wUrg.value = weights.urg; wLen.value = weights.len;
+    syncHeader(); compute(true);
+  })();
+  </script>
+</body>
+</html>
